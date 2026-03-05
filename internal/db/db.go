@@ -64,5 +64,5 @@ func Migrate(db *gorm.DB) error {
 		log.Printf("Warning: Failed to create spatial index: %v", err)
 	}
 
-	return db.AutoMigrate(&models.Place{})
+	return db.AutoMigrate(&models.Place{}, &models.AccessibilityProfile{})
 }

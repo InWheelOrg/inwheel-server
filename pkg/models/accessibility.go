@@ -5,6 +5,8 @@
 
 package models
 
+import "time"
+
 // A11yStatus defines the overall accessibility state of a place.
 type A11yStatus string
 
@@ -20,13 +22,28 @@ const (
 )
 
 // AccessibilityProfile summarizes the accessibility of a place.
+// This model also acts as the audit queue for the Conflict Auditor.
 type AccessibilityProfile struct {
+	// ID is the unique identifier for the profile.
+	ID string `json:"id" gorm:"primaryKey;type:uuid;default:gen_random_uuid()"`
+	// PlaceID is the identifier of the related place.
+	PlaceID string `json:"place_id" gorm:"uniqueIndex;type:uuid"`
 	// OverallStatus is the summary rating of accessibility.
 	OverallStatus A11yStatus `json:"overall_status"`
 	// Components are the individual accessibility features (entrance, etc).
-	Components []A11yComponent `json:"components,omitzero"`
+	Components []A11yComponent `json:"components,omitzero" gorm:"type:jsonb"`
 	// Audit contains the findings of the automated accessibility audit.
-	Audit *AuditResult `json:"audit,omitzero"`
+	Audit *AuditResult `json:"audit,omitzero" gorm:"type:jsonb"`
+	// NeedsAudit indicates if the profile needs to be reviewed by the AI auditor.
+	NeedsAudit bool `json:"-" gorm:"index"`
+	// AuditLockedUntil prevents possible multiple workers from processing the same profile.
+	AuditLockedUntil *time.Time `json:"-"`
+	// Priority determines the order of auditing (higher = sooner).
+	Priority int `json:"-" gorm:"default:1"`
+	// DataVersion is incremented on every write to detect stale audit results.
+	DataVersion int `json:"data_version" gorm:"default:1"`
+	// UpdatedAt is the timestamp when the profile was last updated.
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // AuditResult contains the findings of the automated accessibility audit.

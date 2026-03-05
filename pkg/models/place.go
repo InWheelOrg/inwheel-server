@@ -78,13 +78,11 @@ type Place struct {
 	// ParentID is the identifier of the containing place (e.g., a shop's mall).
 	ParentID *string `json:"parent_id,omitzero"`
 	// Accessibility contains the accessibility profile of the place.
-	Accessibility *AccessibilityProfile `json:"accessibility,omitzero" gorm:"type:jsonb"`
+	Accessibility *AccessibilityProfile `json:"accessibility,omitzero" gorm:"foreignKey:PlaceID"`
 	// Tags contain additional key-value data from the source.
 	Tags map[string]string `json:"tags,omitzero" gorm:"type:jsonb"`
 	// Source indicates where the data originated (e.g., "osm").
 	Source string `json:"source"`
-	// NeedsAudit is an internal flag used to queue the place for an accessibility audit.
-	NeedsAudit bool `json:"-" gorm:"index"`
 	// CreatedAt is the timestamp when the place was created.
 	CreatedAt time.Time `json:"created_at"`
 	// UpdatedAt is the timestamp when the place was last updated.
