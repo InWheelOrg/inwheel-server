@@ -114,7 +114,7 @@ func (s *Server) handleGetPlaces(w http.ResponseWriter, r *http.Request) {
 		}
 		places, err = geo.FindPlacesInBoundingBox(s.db, minLng, minLat, maxLng, maxLat)
 	} else {
-		err = s.db.Preload("Accessibility").Limit(100).Find(&places).Error
+		err = s.db.Preload("Accessibility").Order("updated_at DESC").Limit(100).Find(&places).Error
 	}
 
 	if err != nil {
