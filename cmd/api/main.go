@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
+	"math"
 	"net/http"
 	"os"
 	"strconv"
@@ -248,7 +249,7 @@ func jsonResponse(w http.ResponseWriter, data any, code int) {
 // before proceeding with the parsed result.
 func parseCoord(w http.ResponseWriter, val string, name string) (float64, bool) {
 	f, err := strconv.ParseFloat(val, 64)
-	if err != nil {
+	if err != nil || math.IsNaN(f) || math.IsInf(f, 0) {
 		http.Error(w, "Invalid "+name, http.StatusBadRequest)
 		return 0, false
 	}
