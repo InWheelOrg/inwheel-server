@@ -183,9 +183,9 @@ func (c *A11yComponents) Scan(value interface{}) error {
 }
 
 // Value tells the SQL driver how to write the slice to the database as JSONB.
-func (c *A11yComponents) Value() (driver.Value, error) {
-	if c == nil || *c == nil {
+func (c A11yComponents) Value() (driver.Value, error) {
+	if c == nil {
 		return json.Marshal(make(A11yComponents, 0))
 	}
-	return json.Marshal(*c)
+	return json.Marshal(c)
 }

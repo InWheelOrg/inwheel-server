@@ -58,6 +58,8 @@ services:
         condition: service_healthy
       ollama:
         condition: service_started
+      api:
+        condition: service_started
 
 volumes:
   postgres_data:

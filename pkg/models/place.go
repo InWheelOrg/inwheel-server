@@ -131,9 +131,9 @@ func (t *PlaceTags) Scan(value interface{}) error {
 }
 
 // Value tells the SQL driver how to write the map to the database as JSONB.
-func (t *PlaceTags) Value() (driver.Value, error) {
-	if t == nil || *t == nil {
+func (t PlaceTags) Value() (driver.Value, error) {
+	if t == nil {
 		return json.Marshal(make(PlaceTags))
 	}
-	return json.Marshal(*t)
+	return json.Marshal(t)
 }

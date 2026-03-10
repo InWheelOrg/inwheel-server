@@ -64,11 +64,9 @@ func Migrate(db *gorm.DB) error {
 		return fmt.Errorf("database connection not initialized")
 	}
 
-	if err := db.Exec("CREATE EXTENSION IF NOT EXISTS postgis").Error; err != nil {
-		log.Printf("Warning: Failed to ensure PostGIS extension: %v", err)
-	}
-	if err := db.Exec("CREATE EXTENSION IF NOT EXISTS \"pgcrypto\"").Error; err != nil {
-		log.Printf("Warning: Failed to ensure pgcrypto extension: %v", err)
+	err := db.AutoMigrate(&models.Place{}, &models.AccessibilityProfile{})
+	if err != nil {
+		return fmt.Errorf("failed to migrate database: %w", err)
 	}
 
 	indexQuery := "CREATE INDEX IF NOT EXISTS idx_places_geog ON places USING GIST (geography(ST_Point(lng, lat)))"
@@ -76,5 +74,5 @@ func Migrate(db *gorm.DB) error {
 		log.Printf("Warning: Failed to create spatial index: %v", err)
 	}
 
-	return db.AutoMigrate(&models.Place{}, &models.AccessibilityProfile{})
+	return nil
 }

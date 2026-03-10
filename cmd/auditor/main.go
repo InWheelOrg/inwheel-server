@@ -48,10 +48,6 @@ func main() {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
 
-	if err := db.Migrate(gormDB); err != nil {
-		log.Fatalf("Failed to migrate database: %v", err)
-	}
-
 	parsedURL, err := url.Parse(ollamaURL)
 	if err != nil {
 		log.Fatalf("Invalid OLLAMA_URL: %v", err)
