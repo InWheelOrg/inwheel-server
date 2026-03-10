@@ -5,7 +5,12 @@
 
 package models
 
-import "time"
+import (
+	"database/sql/driver"
+	"encoding/json"
+	"errors"
+	"time"
+)
 
 // A11yStatus defines the overall accessibility state of a place.
 type A11yStatus string
@@ -21,6 +26,17 @@ const (
 	StatusUnknown A11yStatus = "unknown"
 )
 
+// A11yComponentType identifies the kind of accessibility feature.
+type A11yComponentType string
+
+const (
+	ComponentEntrance A11yComponentType = "entrance"
+	ComponentRestroom A11yComponentType = "restroom"
+	ComponentParking  A11yComponentType = "parking"
+	ComponentElevator A11yComponentType = "elevator"
+	ComponentOther    A11yComponentType = "other"
+)
+
 // AccessibilityProfile summarizes the accessibility of a place.
 // This model also acts as the audit queue for the Conflict Auditor.
 type AccessibilityProfile struct {
@@ -31,7 +47,7 @@ type AccessibilityProfile struct {
 	// OverallStatus is the summary rating of accessibility.
 	OverallStatus A11yStatus `json:"overall_status"`
 	// Components are the individual accessibility features (entrance, etc).
-	Components []A11yComponent `json:"components,omitzero" gorm:"type:jsonb"`
+	Components A11yComponents `json:"components,omitzero" gorm:"type:jsonb"`
 	// Audit contains the findings of the automated accessibility audit.
 	Audit *AuditResult `json:"audit,omitzero" gorm:"type:jsonb"`
 	// NeedsAudit indicates if the profile needs to be reviewed by the AI auditor.
@@ -58,17 +74,6 @@ type AuditResult struct {
 	LastAudit string `json:"last_audit"`
 }
 
-// A11yComponentType identifies the kind of accessibility feature.
-type A11yComponentType string
-
-const (
-	ComponentEntrance A11yComponentType = "entrance"
-	ComponentRestroom A11yComponentType = "restroom"
-	ComponentParking  A11yComponentType = "parking"
-	ComponentElevator A11yComponentType = "elevator"
-	ComponentOther    A11yComponentType = "other"
-)
-
 // A11yComponent represents a modular accessibility feature.
 type A11yComponent struct {
 	// Type is the kind of component.
@@ -90,6 +95,9 @@ type A11yComponent struct {
 	// Metadata contains additional un-modeled tags or source-specific data.
 	Metadata map[string]any `json:"metadata,omitzero"`
 }
+
+// A11yComponents is a custom type, so we can implement SQL scanning.
+type A11yComponents []A11yComponent
 
 // EntranceProperties contains technical details about an entrance.
 type EntranceProperties struct {
@@ -135,4 +143,49 @@ type ElevatorProperties struct {
 	Braille *bool `json:"braille,omitzero"`
 	// Audio indicates if there are audio announcements.
 	Audio *bool `json:"audio,omitzero"`
+}
+
+// Scan tells the SQL driver how to read the JSONB bytes into the AuditResult struct.
+func (a *AuditResult) Scan(value interface{}) error {
+	if value == nil {
+		return nil
+	}
+
+	bytes, ok := value.([]byte)
+	if !ok {
+		return errors.New("type assertion to []byte failed for AuditResult")
+	}
+
+	return json.Unmarshal(bytes, a)
+}
+
+// Value tells the SQL driver how to write the AuditResult to the database as JSONB.
+func (a *AuditResult) Value() (driver.Value, error) {
+	if a == nil {
+		return nil, nil
+	}
+	return json.Marshal(a)
+}
+
+// Scan tells the SQL driver how to read the JSONB bytes into the slice.
+func (c *A11yComponents) Scan(value interface{}) error {
+	if value == nil {
+		*c = make(A11yComponents, 0)
+		return nil
+	}
+
+	bytes, ok := value.([]byte)
+	if !ok {
+		return errors.New("type assertion to []byte failed")
+	}
+
+	return json.Unmarshal(bytes, c)
+}
+
+// Value tells the SQL driver how to write the slice to the database as JSONB.
+func (c *A11yComponents) Value() (driver.Value, error) {
+	if c == nil || *c == nil {
+		return json.Marshal(make(A11yComponents, 0))
+	}
+	return json.Marshal(*c)
 }

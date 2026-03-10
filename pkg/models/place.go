@@ -5,7 +5,12 @@
 
 package models
 
-import "time"
+import (
+	"database/sql/driver"
+	"encoding/json"
+	"errors"
+	"time"
+)
 
 // Rank defines the zoom-level hierarchy of a physical location.
 type Rank int
@@ -47,14 +52,6 @@ const (
 	OSMRelation OSMType = "relation"
 )
 
-// Geometry represents a GeoJSON-compatible geometry object.
-type Geometry struct {
-	// Type is the GeoJSON geometry type (Point, Polygon, etc.).
-	Type string `json:"type"`
-	// Coordinates contains the GeoJSON coordinates (point/polygon/etc).
-	Coordinates any `json:"coordinates"`
-}
-
 // Place is the identity layer model, representing a physical location.
 type Place struct {
 	// ID is the unique internal identifier.
@@ -80,11 +77,63 @@ type Place struct {
 	// Accessibility contains the accessibility profile of the place.
 	Accessibility *AccessibilityProfile `json:"accessibility,omitzero" gorm:"foreignKey:PlaceID"`
 	// Tags contain additional key-value data from the source.
-	Tags map[string]string `json:"tags,omitzero" gorm:"type:jsonb"`
+	Tags PlaceTags `json:"tags,omitzero" gorm:"type:jsonb"`
 	// Source indicates where the data originated (e.g., "osm").
 	Source string `json:"source"`
 	// CreatedAt is the timestamp when the place was created.
 	CreatedAt time.Time `json:"created_at"`
 	// UpdatedAt is the timestamp when the place was last updated.
 	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// Geometry represents a GeoJSON-compatible geometry object.
+type Geometry struct {
+	// Type is the GeoJSON geometry type (Point, Polygon, etc.).
+	Type string `json:"type"`
+	// Coordinates contains the GeoJSON coordinates (point/polygon/etc).
+	Coordinates any `json:"coordinates"`
+}
+
+// PlaceTags is a custom type, so we can implement SQL scanning.
+type PlaceTags map[string]string
+
+// Scan tells the SQL driver how to read the JSONB bytes into the Geometry struct.
+func (g *Geometry) Scan(value interface{}) error {
+	if value == nil {
+		return nil
+	}
+	bytes, ok := value.([]byte)
+	if !ok {
+		return errors.New("type assertion to []byte failed for Geometry")
+	}
+	return json.Unmarshal(bytes, g)
+}
+
+// Value tells the SQL driver how to write the Geometry to the database as JSONB.
+func (g *Geometry) Value() (driver.Value, error) {
+	if g == nil {
+		return nil, nil
+	}
+	return json.Marshal(g)
+}
+
+// Scan tells the SQL driver how to read the JSONB bytes into the map.
+func (t *PlaceTags) Scan(value interface{}) error {
+	if value == nil {
+		*t = make(PlaceTags)
+		return nil
+	}
+	bytes, ok := value.([]byte)
+	if !ok {
+		return errors.New("type assertion to []byte failed for PlaceTags")
+	}
+	return json.Unmarshal(bytes, t)
+}
+
+// Value tells the SQL driver how to write the map to the database as JSONB.
+func (t *PlaceTags) Value() (driver.Value, error) {
+	if t == nil || *t == nil {
+		return json.Marshal(make(PlaceTags))
+	}
+	return json.Marshal(*t)
 }
