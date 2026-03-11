@@ -26,6 +26,10 @@ services:
       - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
+    environment:
+      - AUDIT_MODEL=${AUDIT_MODEL:-deepseek-r1:1.5b}
+    entrypoint: /bin/sh
+    command: -c "ollama serve & sleep 5 && ollama pull $${AUDIT_MODEL} && wait"
 
   api:
     build:
