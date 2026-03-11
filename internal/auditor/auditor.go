@@ -168,7 +168,7 @@ Respond ONLY in JSON: {"has_conflict": bool, "reasoning": "string", "confidence"
 
 	var auditResponse struct {
 		HasConflict bool    `json:"has_conflict"`
-		Reason      string  `json:"reason"`
+		Reasoning   string  `json:"reasoning"`
 		Confidence  float64 `json:"confidence"`
 	}
 
@@ -181,7 +181,7 @@ Respond ONLY in JSON: {"has_conflict": bool, "reasoning": "string", "confidence"
 
 	return &models.AuditResult{
 		HasConflict: auditResponse.HasConflict,
-		Reasoning:   auditResponse.Reason,
+		Reasoning:   auditResponse.Reasoning,
 		Confidence:  auditResponse.Confidence,
 		LastAudit:   time.Now().Format(time.RFC3339),
 	}, nil
