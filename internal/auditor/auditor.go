@@ -9,7 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/InWheelOrg/inwheel-server/pkg/models"
@@ -42,7 +42,7 @@ func (a *Auditor) Start(ctx context.Context) {
 		default:
 			processed, err := a.ProcessNextTask(ctx)
 			if err != nil {
-				log.Printf("Audit error: %v. Backing off...", err)
+				slog.Error("Audit error", "error", err)
 				time.Sleep(30 * time.Second)
 				continue
 			}
@@ -96,8 +96,11 @@ func (a *Auditor) ProcessNextTask(ctx context.Context) (bool, error) {
 		return false, nil // No tasks found
 	}
 
+	slog.Info("Processing audit task", "profile_id", profile.ID)
+
 	result, err := a.auditWithLLM(ctx, &profile)
 	if err != nil {
+		slog.Error("LLM audit failed", "profile_id", profile.ID, "error", err)
 		// Unlock on failure so it can be retried later
 		a.db.Model(&profile).Update("audit_locked_until", nil)
 		return false, fmt.Errorf("LLM audit failed: %w", err)
@@ -111,6 +114,7 @@ func (a *Auditor) ProcessNextTask(ctx context.Context) (bool, error) {
 
 		// If data_version has changed, discard the LLM result as it's based on outdated data
 		if current.DataVersion > profile.DataVersion {
+			slog.Warn("Discarding audit result due to data version mismatch", "profile_id", profile.ID)
 			return tx.Model(&current).Update("needs_audit", true).Error
 		}
 
@@ -125,6 +129,7 @@ func (a *Auditor) ProcessNextTask(ctx context.Context) (bool, error) {
 		return false, err
 	}
 
+	slog.Info("Audit task completed", "profile_id", profile.ID, "has_conflict", result.HasConflict)
 	return true, nil
 }
 
@@ -147,6 +152,8 @@ Respond ONLY in JSON: {"has_conflict": bool, "reasoning": "string", "confidence"
 	if err != nil {
 		return nil, err
 	}
+
+	slog.Debug("Sending profile to LLM", "profile_id", profile.ID, "json_body", string(profileJSON))
 
 	req := &api.GenerateRequest{
 		Model:  a.model,

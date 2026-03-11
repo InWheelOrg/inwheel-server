@@ -7,7 +7,7 @@ package main
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -22,6 +22,10 @@ import (
 )
 
 func main() {
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	})))
+
 	dbHost := getEnv("DB_HOST", "localhost")
 	dbPort, _ := strconv.Atoi(getEnv("DB_PORT", "5432"))
 	dbUser := getEnv("DB_USER", "postgres")
@@ -45,12 +49,14 @@ func main() {
 		MaxIdleConns: dbMaxIdle,
 	})
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		slog.Error("Failed to connect to database", "error", err)
+		os.Exit(1)
 	}
 
 	parsedURL, err := url.Parse(ollamaURL)
 	if err != nil {
-		log.Fatalf("Invalid OLLAMA_URL: %v", err)
+		slog.Error("Invalid OLLAMA_URL", "error", err)
+		os.Exit(1)
 	}
 
 	httpClient := &http.Client{
@@ -65,12 +71,12 @@ func main() {
 
 	go func() {
 		<-ctx.Done()
-		log.Println("Shutdown signal received. Gracefully stopping Auditor service...")
+		slog.Info("Shutdown signal received. Gracefully stopping Auditor service...")
 	}()
 
-	log.Printf("Starting Auditor service (model: %s)...", model)
+	slog.Info("Starting Auditor service", "model", model, "ollama_url", ollamaURL)
 	worker.Start(ctx)
-	log.Println("Auditor service stopped gracefully.")
+	slog.Info("Auditor service stopped gracefully.")
 }
 
 func getEnv(key, fallback string) string {

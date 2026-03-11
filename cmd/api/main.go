@@ -8,7 +8,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
-	"log"
+	"log/slog"
 	"math"
 	"net/http"
 	"os"
@@ -29,6 +29,10 @@ type Server struct {
 
 // main initializes the database connection, runs migrations, and starts the public API server.
 func main() {
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	})))
+
 	dbHost := getEnv("DB_HOST", "localhost")
 	dbPort, _ := strconv.Atoi(getEnv("DB_PORT", "5432"))
 	dbUser := getEnv("DB_USER", "postgres")
@@ -49,11 +53,13 @@ func main() {
 		MaxIdleConns: dbMaxIdle,
 	})
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		slog.Error("Failed to connect to database", "error", err)
+		os.Exit(1)
 	}
 
 	if err := db.Migrate(gormDB); err != nil {
-		log.Fatalf("Failed to migrate database: %v", err)
+		slog.Error("Failed to migrate database", "error", err)
+		os.Exit(1)
 	}
 
 	srv := &Server{db: gormDB}
@@ -75,8 +81,11 @@ func main() {
 		IdleTimeout:  120 * time.Second,
 	}
 
-	log.Printf("Starting Public API on :%s...", srvAddr)
-	log.Fatal(httpServer.ListenAndServe())
+	slog.Info("Starting Public API", "addr", srvAddr)
+	if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		slog.Error("HTTP server failed", "error", err)
+		os.Exit(1)
+	}
 }
 
 // handleGetPlaces handles requests for a list of places, supporting two types of spatial filters.
@@ -232,14 +241,14 @@ func jsonResponse(w http.ResponseWriter, data any, code int) {
 
 	payload, err := json.Marshal(data)
 	if err != nil {
-		log.Printf("Error marshaling JSON response: %v", err)
+		slog.Error("Error marshaling JSON response", "error", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
 	w.WriteHeader(code)
 	if _, err := w.Write(payload); err != nil {
-		log.Printf("Error writing JSON response: %v", err)
+		slog.Error("Error writing JSON response", "error", err)
 	}
 }
 
