@@ -4,3 +4,4 @@
 .postman/
 postman/
 .env
+.DS_Store
