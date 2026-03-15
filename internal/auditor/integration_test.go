@@ -9,6 +9,7 @@ package auditor
 
 import (
 	"context"
+	"errors"
 	"log"
 	"os"
 	"testing"
@@ -26,6 +27,7 @@ var testDB *gorm.DB
 // data_version in the DB mid-flight, which is the condition the version-check guard protects against.
 type mockAuditor struct {
 	result            *models.AuditResult
+	err               error
 	bumpVersionOnCall bool
 	db                *gorm.DB
 }
@@ -36,7 +38,7 @@ func (m *mockAuditor) audit(_ context.Context, profile *models.AccessibilityProf
 			Where("id = ?", profile.ID).
 			Update("data_version", profile.DataVersion+1)
 	}
-	return m.result, nil
+	return m.result, m.err
 }
 
 func TestMain(m *testing.M) {
@@ -117,6 +119,49 @@ func TestProcessNextTask_VersionMismatch_DiscardsResult(t *testing.T) {
 	}
 	if profile.Audit != nil {
 		t.Error("expected audit result to be nil after version mismatch")
+	}
+}
+
+func TestProcessNextTask_NoTasks_ReturnsFalse(t *testing.T) {
+	t.Cleanup(func() { truncate(t) })
+
+	a := &Auditor{db: testDB, llm: &mockAuditor{}}
+
+	processed, err := a.ProcessNextTask(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if processed {
+		t.Error("expected processed=false when queue is empty")
+	}
+}
+
+func TestProcessNextTask_LLMFailure_UnlocksProfile(t *testing.T) {
+	t.Cleanup(func() { truncate(t) })
+
+	seeded := seedProfile(t)
+
+	a := &Auditor{
+		db:  testDB,
+		llm: &mockAuditor{err: errors.New("LLM unavailable")},
+	}
+
+	processed, err := a.ProcessNextTask(context.Background())
+	if err == nil {
+		t.Fatal("expected error from LLM failure, got nil")
+	}
+	if processed {
+		t.Error("expected processed=false on LLM failure")
+	}
+
+	var profile models.AccessibilityProfile
+	testDB.First(&profile, "id = ?", seeded.ID)
+
+	if !profile.NeedsAudit {
+		t.Error("expected NeedsAudit=true after LLM failure")
+	}
+	if profile.AuditLockedUntil != nil {
+		t.Error("expected AuditLockedUntil=nil after LLM failure (profile should be unlocked for retry)")
 	}
 }
 
